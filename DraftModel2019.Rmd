@@ -1,0 +1,182 @@
+---
+title: "DraftModel2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(rsample)
+library(car)
+
+predictor.data = read_excel("PredictorData.xlsx")
+predictor.data$Position <- as.factor(predictor.data$Position)
+
+response.data = read_excel("ResponseData.xlsx")
+comb.response = response.data$WS
+
+
+plugin.data = read_excel("PluginData.xlsx")
+plugin.data$Position = as.factor(plugin.data$Position)
+
+
+
+
+
+
+all.plugin = na.omit(cbind(comb.response, predictor.data))
+
+names(all.plugin) <- make.names(names(all.plugin))
+names(predictor.data) <- make.names(names(predictor.data))
+names(plugin.data) <- make.names(names(plugin.data))
+
+
+
+
+
+```
+
+
+```{r}
+library(randomForest) #rf
+library(caret) 
+library(brnn) #nn
+library(e1071) #svm
+library(DMwR) 
+library(FNN)
+
+
+calc_rmse = function(predictions, values){
+  n = length(predictions)
+  se = rep(NA, n)
+  for (i in 1:n){
+    se[i]= (values[i] - unname(predictions[i]))^2
+  }
+  mse = mean(se)
+  rmse = sqrt(mse)
+  return(rmse)
+}
+
+
+
+
+```
+
+
+
+```{r}
+RMSE1 = RMSE2 = RMSE3 = RMSE4 = RMSE5 = RMSE6 = RMSE7 = RMSE8 = RMSE9 = RMSE10 = RMSE11 = rep(NA, 10)
+#BRNN.Model = brnn(comb.response ~., data = traindat, neurons = 5)
+for (i in 1:10){
+split <- initial_split(all.plugin, prop = .7)
+traindat <- training(split)
+testdat  <- testing(split)
+
+N.1 = brnn(comb.response ~., data = traindat, neurons = 1, epochs = 2000)
+N.3 = brnn(comb.response ~., data = traindat, neurons = 3, epochs = 2000)
+N.5 = brnn(comb.response ~., data = traindat, neurons = 5, epochs = 2000)
+
+R.3  = randomForest(comb.response~., data=traindat, mtry=3, ntree = 2000)
+R.4  = randomForest(comb.response~., data=traindat, mtry=4, ntree = 2000)
+R.6  = randomForest(comb.response~., data=traindat, mtry=6, ntree = 2000)
+R.10  = randomForest(comb.response~., data=traindat, mtry=10, ntree = 2000)
+
+S.3 = svm(comb.response ~., data =traindat,  kernel = "polynomial", degree = 3, scale = TRUE)
+S.5 = svm(comb.response ~., data =traindat,  kernel = "polynomial", degree = 5, scale = TRUE)
+S.7 = svm(comb.response ~., data =traindat,  kernel = "polynomial", degree = 7, scale = TRUE)
+S.9 = svm(comb.response ~., data =traindat,  kernel = "polynomial", degree = 9, scale = TRUE)
+
+
+NP.1 = predict(N.1, testdat) #
+NP.3 = predict(N.3, testdat)
+NP.5 = predict(N.3, testdat)
+
+RP.3 = predict(R.3, testdat) # 
+RP.4 = predict(R.4, testdat) # 
+RP.6 = predict(R.6, testdat)
+RP.10 = predict(R.10, testdat)
+
+SP.3 = predict(S.3, testdat)
+SP.5 = predict(S.5, testdat)
+SP.7 = predict(S.7, testdat)
+SP.9 = predict(S.9, testdat)
+
+
+
+
+RMSE1[i] = calc_rmse(NP.1, testdat$comb.response)
+RMSE2[i] = calc_rmse(NP.3, testdat$comb.response)
+RMSE3[i] = calc_rmse(NP.5, testdat$comb.response)
+RMSE4[i] = calc_rmse(RP.3, testdat$comb.response)
+RMSE5[i] = calc_rmse(RP.4, testdat$comb.response)
+RMSE6[i] = calc_rmse(RP.6, testdat$comb.response)
+RMSE7[i] = calc_rmse(RP.10, testdat$comb.response)
+RMSE8[i] = calc_rmse(SP.3, testdat$comb.response)
+RMSE9[i] = calc_rmse(SP.5, testdat$comb.response)
+RMSE10[i]= calc_rmse(SP.7, testdat$comb.response)
+RMSE11[i] = calc_rmse(SP.9, testdat$comb.response)
+
+
+
+}
+
+combRMSE = c(mean(RMSE1), mean(RMSE2), mean(RMSE3), mean(RMSE4), mean(RMSE5), mean(RMSE6), mean(RMSE7), mean(RMSE8), mean(RMSE9), mean(RMSE10), mean(RMSE11))
+
+
+
+
+
+```
+
+
+```{r}
+
+#R.6  = randomForest(comb.response~., data=traindat, mtry=6, ntree = 2000)
+#R.10  = randomForest(comb.response~., data=traindat, mtry=10, ntree = 2000)
+#N1, N3 
+players = plugin.data$Player
+three.bonus = plugin.data$X3PMade*plugin.data$X3Percent
+
+nnpred = predict(BRNN.Model, plugin.data)
+rfpred = predict(RF.Model, plugin.data)
+svmpred = predict(SVM.Model, plugin.data)
+
+BRNN.Model1 = brnn(comb.response ~., data = predictor.data, neurons = 4, epochs = 2000)
+BRNN.Model4 = brnn(r.2 ~., data = predictor.data, neurons = 4, epochs = 2000)
+nnpred1 = (round(predict(BRNN.Model1, plugin.data),1))
+nnpred4 = (round(predict(BRNN.Model4, plugin.data),1))
+df = data.frame(cbind(players, (nnpred1 + three.bonus + nnpred4) ))
+colnames(df)[2] = "nnpred1" 
+df$nnpred1 = as.numeric(levels(df$nnpred1))[df$nnpred1]
+df2 = df[order(-df$nnpred1),] 
+View(df2)
+
+#1, 6 
+BRNN.Model5 = brnn(comb.response ~., data = predictor.data, neurons = 3, epochs = 2000)
+nnpred5 = predict(BRNN.Model5, plugin.data) + three.bonus  + nnlegacy
+df = data.frame(cbind(players, nnpred5 ) )
+colnames(df)[2] = "nnpred5" 
+df$nnpred5 = as.numeric(levels(df$nnpred5))[df$nnpred5]
+df2 = df[order(-df$nnpred5),] 
+View(df2)
+
+
+BRNN.Model.Old = brnn(r.2 ~., data = predictor.data, neurons = 4, epochs = 2000)
+nnpred.old = predict(BRNN.Model.Old, plugin.data) 
+dfold = data.frame(cbind(players, nnpred.old + three.bonus) )
+colnames(dfold)[2] = "nnpredold" 
+dfold$nnpredold = as.numeric(levels(dfold$nnpredold))[dfold$nnpredold]
+df2old = dfold[order(-dfold$nnpredold),] 
+View(df2old)
+
+
+
+```
+
+
+  
